@@ -18,7 +18,7 @@
 
 #setwd("/Users/xintaoqiu/Dropbox (Partners HealthCare)/CFCE Analysis/scATAC_CNV/H7_Met/")
 #source("./R/supp_functions.R")
-main_function <- function(){}
+main_function <- function(){
   set.seed(1234)
   project = "H7_met_func"
   avg_frag_length <- 19
