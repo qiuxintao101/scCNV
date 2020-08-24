@@ -1,6 +1,18 @@
-#use terminal to find overlap between fragments file and peaks. Return path to offtarget and ontarget
-getOverlap <- function(fragments_file, peak_path, blacklist_path){
+#' Create offtarget and ontarget reads
+#'
+#' This function uses the terminal to find overlap between fragments file and
+#' peaks. Bedtools and Tabix need to be installed in order for this
+#' preprocessing to occur
+#'
+#' @param fragments_file path to the fragments file
+#' @param peak_path path to the peaks BED file
+#' @param blacklist_path path to a blacklist BED file, if it exists
+#' @return A list containing the paths to the offtarget and ontarget files
+#' @export
+getOverlap <- function(fragments_file, peak_path, blacklist_path=NULL){
   runcmd <- T
+  ontarget_path <- ""
+  offtarget_path <- ""
   if(!file.exists("/usr/bin/bedtools")){
     runcmd <- F
     print(paste("WARNING: bedtools not installed in system.",
@@ -17,7 +29,7 @@ getOverlap <- function(fragments_file, peak_path, blacklist_path){
   if(runcmd){
     cmd <- paste("gunzip -k", fragments_file)
 
-    if(file.exists(blacklist_path)){
+    if(!is.null(blacklist_path)){
       cmd <-paste(cmd, "&& bedtools intersect -a",
                   substr(fragments_file,1,nchar(fragments_file)-3),
                   "-b", blacklist_path, "-v -wa > fragments.blacklisted.tsv")
@@ -30,19 +42,30 @@ getOverlap <- function(fragments_file, peak_path, blacklist_path){
                  "&& bgzip fragments.offtarget.tsv",
                  "&& tabix -p bed fragments.offtarget.tsv.gz")
     system(cmd)
+    offtarget_path <- paste(getwd(), "fragments.offtarget.tsv.gz", sep = "")
 
     #create ontarget file
     cmd <- paste("bedtools intersect -a", new_path, peak_path, "-wa > fragments.ontarget.tsv",
                  "&& bgzip fragments.ontarget.tsv",
                  "&& tabix -p bed fragments.ontarget.tsv.gz")
+    ontarget_path <- paste(getwd(), "fragments.ontarget.tsv.gz", sep = "")
   }
+  return(list("offtarget" = offtarget_path, "ontarget" =ontarget_path))
 }
 
-#Remove unmappable region from the tile
+#' Remove unmappable regions from genomic tiles
+#'
+#' This function removes any unmapped region defined by a .csv
+#' from a GenomicRanges tile object
+#'
+#' @param tiles GRanges tiles object
+#' @param unmapped_region path to a .csv defining the unmappable regions
+#' @return GRanges object with the unmappable regions removed
+#' @export
 removeUnmapped <- function(tiles,unmapped_region){
   gr_b <- read.csv(unmapped_region,header = F)
   colnames(gr_b) <- c("chr", "start", "end")
-  pairs <- subsetByOverlaps(tiles, makeGRangesFromDataFrame(gr_b), invert = TRUE, ignore.strand = TRUE)
+  pairs <- IRanges::subsetByOverlaps(tiles, GenomicRanges::makeGRangesFromDataFrame(gr_b), invert = TRUE, ignore.strand = TRUE)
   return(pairs)
 }
 
@@ -53,7 +76,7 @@ removeUnmapped <- function(tiles,unmapped_region){
 #' with appropriate row names
 #'
 #' @param tiles GRanges Genomic Tiles Object
-#' @return A dataframe with genomic windows as row names
+#' @return A dataframe with genomic features as row names
 tileTodf <- function(tiles){
   df <- as.data.frame(tiles)[,c(1:4)]
   row_names <- do.call(paste, c(df[,c(1:3)], sep="-"))
@@ -63,12 +86,22 @@ tileTodf <- function(tiles){
 
 
 
-#Calculate GC content and append to dataframe
+#' Calculate GC content and append to dataframe
+#'
+#' This function the GC content of GenomicRanges Tiles and appends it to
+#' an existing dataframe. This function uses the Hsapiens genome from
+#' BSgenome.Hsapiens.UCSC.hg19.
+#'
+#' @param df existing dataframe
+#' @param tiles GRanges tiles object
+#' @param GC_cutoff Maximum GC content to be included
+#' @return dataframe containing GC content, count, and frequency.
+#' @export
 calcGC <- function(df, tiles, GC_cutoff){
   GC_Content <- c()
   N_Count <- c()
   N_Freq <- c()
-  Hsapiens <- BSgenome.Hsapiens.UCSC.hg19 ::Hsapiens
+  Hsapiens <- BSgenome.Hsapiens.UCSC.hg19::Hsapiens
   for (i in 1:length(tiles))
   {
     GC_Content <- append(GC_Content,biovizBase::GCcontent(Hsapiens, tiles[i]))
@@ -84,7 +117,19 @@ calcGC <- function(df, tiles, GC_cutoff){
 }
 
 
-#Calculate overlap between window bin and peaks
+#' Calculate overlap between feature bin and peaks
+#'
+#' This function calculates the length of each Genomic feature not occupied by
+#' peaks, and checks if the percentage of peaks is above a certain threshold.
+#' The lengths and boolean values are appended as columns to the provided dataframe
+#'
+#' @param df dataframe to contain the lengths without peaks
+#' @param tiles GRanges tiles object
+#' @param genome genetic sequence information
+#' @param peak_off_cutoff Maximum percentage of peaks in a given feature
+#' @return dataframe containing the lengths of features without peaks and column of features above the peak cutoff
+#' @export
+
 calcOverlap <- function(df, tiles, peaks, genome, peak_occ_cutoff){
   lengths = c()
   starts <-  df[,2]
@@ -104,7 +149,17 @@ calcOverlap <- function(df, tiles, peaks, genome, peak_occ_cutoff){
 
 
 
-#Calculate read counts in each bin
+#' Calculate read counts in each bin
+#'
+#' This function calculates the read count of specific cells in a framgnets file.
+#' These counts are returned as a matrix
+#'
+#' @param cells .tsv file of cells to include in the calculation
+#' @param df dataframe containing GCcontent, peak content and width information
+#' @param fragments path to a .tsv.gz fragments file with corresponding .tbi file
+#' @return A matrix containing the read counts. Row names are features, column names are cells
+#' @export
+
 getBinMatrix <- function(cells, df, fragments){
   cell <- utils::read.table(cells)
 
@@ -124,10 +179,19 @@ getBinMatrix <- function(cells, df, fragments){
 }
 
 
-### Calculate coverage #########
+#' Calculate coverage
+#'
+#' This fuction calculate coverage by multiplying read counts by the average
+#' fragment length and dividing by the length of the feature
+#'
+#' @param data Matrix of copy numbers
+#' @param df dataframe containing a feature lengths column
+#' @param avg_frag_length Average length of a genomic framgnet
+#' @return coverage matrix
+#' @export
 calcCoverage <- function(data, df, avg_frag_length){
   coverage <- data
-  # Get acutal lengh (peaks length removed) for each window
+  # Get actual length (peaks length removed) of each feature
   lengths <- df[rownames(coverage),"length"]
   for( j in 1:ncol(data)){
     coverage[,j] = (data[,j] * avg_frag_length) / lengths
@@ -136,7 +200,18 @@ calcCoverage <- function(data, df, avg_frag_length){
 }
 
 
-### Select GC matched background #############
+#' Select GC matched background
+#'
+#' This function matches each feature to a specified number of its closest
+#' GC matched neighbors. A certain number of these neighbors are then
+#' sampled to create a GC matched background
+#'
+#' @param coverage coverage matrix (as produced by calcCoverage())
+#' @param df dataframe containing the GC content of genomic features
+#' @param GC_radius half the number of neighbors that will be matched to each feature
+#' @param GC_sample_size number of features that will be sampled to produce the background
+#' @return A matrix containing the names of GC matched features
+#' @export
 getGCBackground <- function(coverage, df, GC_radius, GC_sample_size){
   row_names <- rownames(coverage)
   GC_Content <- df[row_names,"GC_Content"]
@@ -182,7 +257,16 @@ getGCBackground <- function(coverage, df, GC_radius, GC_sample_size){
   return(name_table)
 }
 
-### Calculate random selected background ######
+#' Calculate random selected background
+#'
+#' Calculates the average coverage of each row of feature names in name_table
+#' in order to produce a background average. Any averages of zero are replaced
+#' with the smallest value for that cell.
+#'
+#' @param coverage Coverage matrix (feature x cell)
+#' @param name_table Table of feature names to include in background
+#' @return average coverage table for each feature and cell
+#' @export
 calcAvgTable <- function(coverage, name_table){
   avg_table <- c()
   for(window in 1:nrow(coverage)){
@@ -207,7 +291,17 @@ calcAvgTable <- function(coverage, name_table){
 
 
 
-### Plot Corrlation plot for potential bias factors ######
+#' Plot Corrlation plot for potential bias factors
+#'
+#' This function creates a correlation plot for potential bias factors using
+#' GC content
+#'
+#' @param fc Fold change matrix
+#' @param df dataframe containing GC content data
+#' @param project Name of the project
+#' @param cormethod Method to use in the correlation calculation
+#' @return Creates a correlation plot and returns GC content
+#' @export
 GCplot <- function(fc,df,project,cormethod){
   GC_Content <- df[rownames(fc),"GC_Content"]
   grDevices::pdf(paste(project,"_CNV_vs_GC_spearman.pdf",sep=""))
@@ -220,7 +314,18 @@ GCplot <- function(fc,df,project,cormethod){
 
 
 
-### Plot Corrlation plot for potential bias factors ######
+#' Plot Corrlation plot for potential bias factors using TAD data
+#'
+#' This function creates a correlation plot for potential bias factors using
+#' TAD cluster data
+#'
+#' @param fc Fold change matrix
+#' @param tiles GRanges tiles object
+#' @param df dataframe
+#' @param project Name of the project
+#' @param TAD_Cluster file path to TAD cluster file
+#' @return Creates a correlation plot and returns TAD data
+#' @export
 TADplot <- function(fc,tiles,df,project,TAD_cluster){
   gr_a <- tiles
   gr_b <- utils::read.table(TAD_cluster)
@@ -253,7 +358,19 @@ TADplot <- function(fc,tiles,df,project,TAD_cluster){
 }
 
 
-### Plot Corrlation plot for potential bias factors ######
+#' Plot Corrlation plot for potential bias factors
+#'
+#' This function creates a correlation plot for potential bias factors using
+#' ATAC data
+#'
+#' @param cells path to a list of cell barcodes
+#' @param target_fragments path to a target fragments.tsv.gz file
+#' @param df dataframe
+#' @param fc Fold change matrix
+#' @param project Name of the project
+#' @param cormethod Method to use in the correlation calculation
+#' @return Creates a correlation plot and returns on target cnv data
+#' @export
 ATACplot <- function(cells, target_fragments, df, fc, project, cormethod){
   target <- getBinMatrix(cells, df, target_fragments)
   target <- t(target)
@@ -268,7 +385,23 @@ ATACplot <- function(cells, target_fragments, df, fc, project, cormethod){
 }
 
 
-### Plot CNV heatmaps ##########
+#' Plot CNV heatmap
+#'
+#' This function creates a heatmap using CNV data, where each row is a cell
+#' and reach column is a genomic feature. Cells can be clustered together
+#' hierarchically (if k_means ==0), or with k-means clustering
+#'
+#' @param fc Fold change matrix
+#' @param k_means Number of desired clusters k-means (hiearchical if 0)
+#' @param k_means_cell_cut_off minimum number of cells for a cluster to be seen
+#' @param gz chromosome length data, produced by seqlengths()
+#' @param project Name of project
+#' @param GC_Content GC content data. See GCplot
+#' @param tad tad data. See TADplot
+#' @param target_t On-target content data. See ATACplot
+#' @param hc_cluster number of hiearchical clusters
+#' @return creates heatmap and returns corresponding dataframe
+#' @export
 plotCNV <- function(fc, k_means, k_means_cell_cut_off, gz, project, GC_Content=NULL ,tad=NULL, target_t=NULL ,hc_cluster = 6){
   mat2 <- t(fc)
 
@@ -330,12 +463,26 @@ plotCNV <- function(fc, k_means, k_means_cell_cut_off, gz, project, GC_Content=N
   names(ann_color) <- names(gz)
   col1 <- list(chr = ann_color)
 
-
+  if(is.null(GC_Content)){
+    gc_height <- 0
+  }else{
+    gc_height <- grid::unit(5, "cm")
+  }
+  if(is.null(tad)){
+    tad_height <- 0
+  }else{
+    tad_height <- grid::unit(5, "cm")
+  }
+  if(is.null(target_t)){
+    atac_height <- 0
+  }else{
+    atac_height <- grid::unit(5, "cm")
+  }
   ha = HeatmapAnnotation(
     CNV = ComplexHeatmap::anno_points(colMeans(hmdata), height = grid::unit(5, "cm"),ylim=c(0,10)),
-    GC = ComplexHeatmap::anno_points(GC_Content, height = grid::unit(5, "cm")),
-    TAD = ComplexHeatmap::anno_points(tad, height = grid::unit(5, "cm")),
-    ATAC = ComplexHeatmap::anno_points(target_t, height = grid::unit(5, "cm")))
+    GC = ComplexHeatmap::anno_points(GC_Content, height = gc_height),
+    TAD = ComplexHeatmap::anno_points(tad, height = tad_height),
+    ATAC = ComplexHeatmap::anno_points(target_t, height = atac_height))
 
   print(paste("Save CNV heatmap to ",project,"_kmeans_",k_means,"_heatmap.pdf",sep=""))
   grDevices::pdf(paste(project,"_kmeans_",k_means,"_heatmap.pdf",sep=""),  width=24,height=25 )
@@ -364,7 +511,14 @@ plotCNV <- function(fc, k_means, k_means_cell_cut_off, gz, project, GC_Content=N
 
 
 
-### Supercell - PCA & hierarchical clustering ######
+#' Supercell - PCA & hierarchical clustering
+#'
+#' Clusters cells into super cells using Principle Component Analysis
+#'
+#' @param fc Fold change matrix
+#' @param cellsPerGroup number of cells per supercell
+#' @return dataframe containing the supercell groups
+#' @export
 superCells <- function(fc,cellsPergroup){
   print("Start PCA...")
   fc.pca <- stats::prcomp(t(fc),retx = TRUE, center = TRUE, scale. = TRUE)
@@ -383,7 +537,14 @@ superCells <- function(fc,cellsPergroup){
 }
 
 
-### Supercell - merge cells ######
+#' Supercell - merge cells
+#'
+#' This function merges the cnv data of a group of cells according
+#' to their supercell grouping
+#' @param data matrix containing cnv data
+#' @param supercells matrix containing supercell grouping assignemnts
+#' @return supercells with calculated cnv data
+#' @export
 superCells_merge <- function(data,supercells){
   data_super <- c()
 

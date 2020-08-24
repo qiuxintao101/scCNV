@@ -7,10 +7,10 @@
 tileTodf(tiles)
 }
 \arguments{
-\item{GRanges}{Genomic Tiles Object}
+\item{tiles}{GRanges Genomic Tiles Object}
 }
 \value{
-Dataframe windows as row names
+A dataframe with genomic features as row names
 }
 \description{
 This function converts a GRanges object to a dataframe

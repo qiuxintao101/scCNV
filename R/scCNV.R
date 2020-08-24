@@ -17,7 +17,7 @@
 # library(ggpubr)
 
 #setwd("/Users/xintaoqiu/Dropbox (Partners HealthCare)/CFCE Analysis/scATAC_CNV/H7_Met/")
-#source("./R/supp_functions.R")
+source("./R/supp_functions.R")
 scCNV <- function(){
   set.seed(1234)
   project = "H7_met_func"
@@ -28,9 +28,9 @@ scCNV <- function(){
   gz<- seqlengths(TxDb.Hsapiens.UCSC.hg19.knownGene)[1:24]
   #genome <- Seqinfo(genome = "hg19")
   genome <- readRDS("~/scCNV_functions/genome.rds")
-  peaks <- "~/Downloads/peaks.bed"
-  cells <- "~/5k_pbmc_atac/5k_barcodes.tsv"
-  fragments <- "~/5k_pbmc_atac/atac_pbmc_5k_nextgem_fragments.tsv.gz"
+  peaks <- "~/Test_Folder/peaks.bed"
+  cells <- "~/Downloads/barcodes.tsv"
+  fragments <- "~/Test_Folder/fragments.offtarget.tsv.gz"
   target_fragments <- "~/Test_Folder/fragments.target.tsv.gz"
   GC_radius = 100
   GC_sample_size = 100
@@ -38,7 +38,7 @@ scCNV <- function(){
   k_means_cell_cut_off = 30
   cellsPersupercell = 30
   TAD_cluster <- "~/Downloads/TAD_cluster.hg19.bed"
-  unmapped_region <- "/Users/xintaoqiu/Dropbox (Partners HealthCare)/CFCE Analysis/scATAC_CNV/R_package/unmap_region_chr.csv"
+  unmapped_region <- "~/Downloads/unmap_region_chr.csv"
 
 
   tiles <- tileGenome(seqlengths = gz, tilewidth = binsize, cut.last.tile.in.chrom = TRUE)
