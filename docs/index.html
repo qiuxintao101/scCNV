@@ -87,19 +87,153 @@
                   </div>
                   <div id="example" class="section level2">
                      <h2 class="hasAnchor">
-                        <a href="#example" class="anchor"></a>Example
+                        <a href="#example" class="anchor"></a>Creating Genomic Tiles and Removing Unmappable reads
                      </h2>
-                     <p>The following code is an example of how to produce a copy number matrix::</p>
+                     <p>The following code is an example of how to produce a copy number matrix:</p>
                      <div class="sourceCode" id="cb2">
                         <pre class="r"><span class="fu"><a href="https://rdrr.io/r/base/library.html">library</a></span>(<span class="no">scCNV</span>)
-<span class ="no">tiles <- tileGenome(seqlengths = gz, tilewidth = binsize, cut.last.tile.in.chrom = TRUE)
-
+                          <span class ="no">
+tiles <- tileGenome(seqlengths = gz, tilewidth = binsize, cut.last.tile.in.chrom = TRUE)
+tiles <- removeUnmapped(tiles,unmapped_region)
+                          </span>
+                        </pre>
+                     </div>
+                  </div>
+                  <div id="example" class="section level2">
+                     <h2 class="hasAnchor">
+                        <a href="#example" class="anchor"></a>Calculating GC Content
+                     </h2>
+                     <p>The following code converts genomic tiles to a dataframe and calculate the GC content of each:</p>
+                     <div class="sourceCode" id="cb2">
+                        <pre class="r">
+                          <span class ="no">
 df <- tileTodf(tiles)
 df <- calcGC(df, tiles, GC_cutoff)
-df <- calcOverlap(df, tiles, peaks, genome, peak_occ_cutoff)
-
-data <- getBinMatrix(cells, df, fragments)</span></pre>
+                          </span>
+                        </pre>
                      </div>
+                  </div>
+                  <div id="example" class="section level2">
+                     <h2 class="hasAnchor">
+                        <a href="#example" class="anchor"></a>Calculating Peak Overlap
+                     </h2>
+                     <p>The following line calculates the overlap of between the tiles and peaks. Tiles containing above a certain percentage of peaks are removed:</p>
+                     <div class="sourceCode" id="cb2">
+                        <pre class="r">
+                          <span class ="no">
+df <- calcOverlap(df, tiles, peaks, genome, peak_occ_cutoff)
+                          </span>
+                        </pre>
+                     </div>
+                  </div>
+                  <div id="example" class="section level2">
+                     <h2 class="hasAnchor">
+                        <a href="#example" class="anchor"></a>Produce a Copy Number Matrix
+                     </h2>
+                     <p>The following line produces a copy number matrix of certain cells using a fragments.tsv file:</p>
+                     <div class="sourceCode" id="cb2">
+                        <pre class="r">
+                          <span class ="no">
+data <- getBinMatrix(cells, df, fragments)
+                          </span>
+                        </pre>
+                     </div>
+                  </div>
+                  <div id="example" class="section level2">
+                     <h2 class="hasAnchor">
+                        <a href="#example" class="anchor"></a>Calculate Coverage
+                     </h2>
+                     <p>The following line produces a coverage table using copy numbers and lengths of features:</p>
+                     <div class="sourceCode" id="cb2">
+                        <pre class="r">
+                          <span class ="no">
+coverage <- calcCoverage(data, df, avg_frag_length)
+                          </span>
+                        </pre>
+                     </div>
+                  </div>
+                  <div id="example" class="section level2">
+                     <h2 class="hasAnchor">
+                        <a href="#example" class="anchor"></a>Produce GC-matched background
+                     </h2>
+                     <p>The following line selects a number of GC matched neighbors for each feature and stores them in a matrix</p>
+                     <div class="sourceCode" id="cb2">
+                        <pre class="r">
+                          <span class ="no">
+name_table <- getGCBackground(coverage, df, GC_radius, GC_sample_size)
+                          </span>
+                        </pre>
+                     </div>
+                  </div>
+                  <div id="example" class="section level2">
+                     <h2 class="hasAnchor">
+                        <a href="#example" class="anchor"></a>Calculate Fold Change Matrix
+                     </h2>
+                     <p>This section calculates the the average CNV background for each cell and uses it to calculate fold change</p>
+                     <div class="sourceCode" id="cb2">
+                        <pre class="r">
+                          <span class ="no">
+avg_table <- calcAvgTable(coverage, name_table)
+fc <- coverage / avg_table
+                          </span>
+                        </pre>
+                     </div>
+                  </div>
+                  <div id="example" class="section level2">
+                     <h2 class="hasAnchor">
+                        <a href="#example" class="anchor"></a>Create GC Correlation Plot
+                     </h2>
+                     <p>The following line creates a CNV vs. GC correlation plot</p>
+                     <div class="sourceCode" id="cb2">
+                        <pre class="r">
+                          <span class ="no">
+GC_Content <- GCplot(fc,df,project,"spearman")
+                          </span>
+                        </pre>
+                     </div>
+                     <img src="images/GC.png" width="875">
+                  </div>
+                  <div id="example" class="section level2">
+                     <h2 class="hasAnchor">
+                        <a href="#example" class="anchor"></a>Create TAD Correlation Plot
+                     </h2>
+                     <p>The following line creates a TAD vs. GC correlation plot</p>
+                     <div class="sourceCode" id="cb2">
+                        <pre class="r">
+                          <span class ="no">
+tad <- TADplot(fc,tiles,df,project,TAD_cluster)
+                          </span>
+                        </pre>
+                     </div>
+                     <img src="images/TAD.png" width="875">
+                  </div>
+                  <div id="example" class="section level2">
+                     <h2 class="hasAnchor">
+                        <a href="#example" class="anchor"></a>Create ATAC Correlation Plot
+                     </h2>
+                     <p>The following line creates a ATAC vs. GC correlation plot</p>
+                     <div class="sourceCode" id="cb2">
+                        <pre class="r">
+                          <span class ="no">
+target_t <- ATACplot(cells,target_fragments, df, fc, project, "spearman")
+                          </span>
+                        </pre>
+                     </div>
+                     <img src="images/ATAC.png" width="875">
+                  </div>
+                  <div id="example" class="section level2">
+                     <h2 class="hasAnchor">
+                        <a href="#example" class="anchor"></a>Create CNV Heatmap
+                     </h2>
+                     <p>The following line creates a Heatmap of CNV data. Cells are either clustered with k-means (k_means > 0) or hiearchically (k_means=0)</p>
+                     <div class="sourceCode" id="cb2">
+                        <pre class="r">
+                          <span class ="no">
+output <- plotCNV(fc, k_means, k_means_cell_cut_off, gz, project, GC_Content=GC_Content ,tad=tad, target_t=target_t)
+                          </span>
+                        </pre>
+                     </div>
+                     <img src="images/heatmap.png" width="875">
                   </div>
                </div>
             </div>

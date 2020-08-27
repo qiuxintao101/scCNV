@@ -151,7 +151,7 @@ calcOverlap <- function(df, tiles, peaks, genome, peak_occ_cutoff){
 
 #' Calculate read counts in each bin
 #'
-#' This function calculates the read count of specific cells in a framgnets file.
+#' This function calculates the read count of specific cells in a fragments file.
 #' These counts are returned as a matrix
 #'
 #' @param cells .tsv file of cells to include in the calculation
@@ -512,7 +512,6 @@ plotCNV <- function(fc, k_means, k_means_cell_cut_off, gz, project, GC_Content=N
 
 
 #' Supercell - PCA & hierarchical clustering
-#'
 #' Clusters cells into super cells using Principle Component Analysis
 #'
 #' @param fc Fold change matrix
