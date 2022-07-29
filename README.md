@@ -4,7 +4,7 @@
 <!-- badges: start -->
 <!-- badges: end -->
 
-The goal of scCNV is to estimate the single cell DNA copy number from scATAC experiement.
+The goal of scCNV is to estimate the single cell DNA copy number from scATAC-seq experiement.
 
 ## Installation
 
